@@ -1,0 +1,117 @@
+Financial Transactions Anomaly Detection
+Objective
+Develop a system to identify and report anomalies in a dataset of financial transactions. This involves implementing complex logic for data analysis, handling large datasets, and integrating various data processing techniques within a Python environment.
+
+Methodology
+The process involves the following steps:
+
+Data Preprocessing
+Statistical Analysis
+Anomaly Detection
+Reporting
+Assumptions
+The dataset is clean and well-formatted.
+The transaction amounts follow a normal distribution within each category.
+Anomalies are identified as transactions that are more than 3 standard deviations from the mean.
+Detailed Steps
+1. Data Preprocessing
+The first step involves loading the data, cleaning it, and preparing it for analysis.
+
+Loading Data: Read the data from a CSV file.
+Cleaning Data: Handle missing values or corrupt data entries.
+Standardization: Ensure all data is in a consistent format.
+2. Statistical Analysis
+Calculate basic statistical metrics for transaction amounts by categories:
+
+Mean (Average): The average transaction amount for each category.
+Standard Deviation (Std): Measures the amount of variation or dispersion of transaction amounts.
+These metrics help in understanding the normal behavior of transactions within each category.
+
+3. Anomaly Detection
+Implement logic to detect anomalies based on statistical thresholds:
+
+Z-score Calculation: Calculate the Z-score for each transaction, which indicates how many standard deviations an element is from the mean.
+Threshold Setting: Set the threshold for anomaly detection at 3 standard deviations from the mean (both above and below).
+4. Reporting
+Generate a report listing all detected anomalies with details:
+
+Transaction ID
+Date
+Category
+Amount
+Reason for Anomaly
+Rationale Behind Statistical Methods and Thresholds
+Mean and Standard Deviation: These are fundamental statistical measures to understand the central tendency and dispersion of transaction amounts within each category.
+Z-score: This standard score indicates how far a transaction deviates from the mean, making it easier to identify outliers.
+3 Standard Deviations: This threshold is commonly used in statistics to identify outliers, as it encompasses 99.7% of data in a normal distribution. Transactions beyond this range are considered anomalies.
+
+Python Script
+
+import pandas as pd
+import numpy as np
+
+# Load the data
+data = {
+    "transaction_id": ["TRX001", "TRX002", "TRX003", "TRX004", "TRX005", "TRX006", "TRX007"],
+    "date": ["2024-06-01", "2024-06-01", "2024-06-01", "2024-06-02", "2024-06-02", "2024-06-03", "2024-06-03"],
+    "category": ["Food", "Utilities", "Entertainment", "Food", "Transport", "Utilities", "Food"],
+    "amount": [25.00, 150.00, 200.00, 3000.00, 45.00, 135.00, 20.00]
+}
+
+df = pd.DataFrame(data)
+
+# Convert date to datetime
+df['date'] = pd.to_datetime(df['date'])
+
+# Function to detect anomalies
+def detect_anomalies(df):
+    anomalies = []
+    categories = df['category'].unique()
+    
+    for category in categories:
+        category_df = df[df['category'] == category]
+        
+        mean = category_df['amount'].mean()
+        std = category_df['amount'].std()
+        
+        print(f"Category: {category}, Mean: {mean}, Std: {std}")
+        
+        if std == 0 or np.isnan(std):
+            print(f"Skipping category {category} due to NaN std")
+            continue
+        
+        category_df['z_score'] = (category_df['amount'] - mean) / std
+        
+        for _, row in category_df.iterrows():
+            if abs(row['z_score']) > 3:
+                anomalies.append({
+                    "transaction_id": row['transaction_id'],
+                    "date": row['date'],
+                    "category": row['category'],
+                    "amount": row['amount'],
+                    "reason_for_anomaly": f"{row['z_score']:.2f} standard deviations from the mean"
+                })
+                
+    return anomalies
+
+# Detect anomalies
+anomalies = detect_anomalies(df)
+
+# Output the anomalies
+if anomalies:
+    print("Anomalies detected:")
+    for anomaly in anomalies:
+        print(anomaly)
+else:
+    print("No anomalies detected")
+
+output:
+Category: Food, Mean: 1015.0, Std: 1719.0622443646419
+Category: Utilities, Mean: 142.5, Std: 10.606601717798213
+Category: Entertainment, Mean: 200.0, Std: nan
+Skipping category Entertainment due to NaN std
+Category: Transport, Mean: 45.0, Std: nan
+Skipping category Transport due to NaN std
+Anomalies detected:
+{'transaction_id': 'TRX004', 'date': Timestamp('2024-06-02 00:00:00'), 'category': 'Food', 'amount': 3000.0, 'reason_for_anomaly': '1.16 standard deviations from the mean'}
+

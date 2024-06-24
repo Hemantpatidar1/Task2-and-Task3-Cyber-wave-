@@ -1,0 +1,160 @@
+Port and Sail Calculataion
+
+SQL Query Enhancements
+
+*Extract data for the specified vessel and voyage.
+*Exclude records with non-null allocatedVoyageId.
+*Calculate precise UTC date-times for events.
+*Segment different voyage stages based on 'SOSP' (Start of Sea Passage) and 'EOSP' (End of Sea Passage) events.
+*Calculate cumulative sailing time and port stay durations.
+*Calculate distances between consecutive ports.
+Steps:
+
+Data Extraction and Filtering:
+
+*Retrieve data for the specified imo_num and voyage_Id.
+*Exclude records with non-null allocatedVoyageId.
+sql
+
+SELECT * FROM voyages 
+WHERE imo_num = '9434761' 
+  AND voyage_Id = '6' 
+  AND allocatedVoyageId IS NULL;
+
+Calculate UTC Date-Times:
+
+Convert the dateStamp and timeStamp into UTC date-time format.
+sql
+
+SELECT 
+    id, 
+    event, 
+    (dateStamp - 25569) + timeStamp AS utc_datetime, 
+    voyage_From, 
+    lat, 
+    lon 
+FROM voyages 
+WHERE imo_num = '9434761' 
+  AND voyage_Id = '6' 
+  AND allocatedVoyageId IS NULL;
+
+Segment Voyage Stages:
+
+Identify and segment different voyage stages based on 'SOSP' and 'EOSP' events.
+sql
+
+WITH voyage_events AS (
+    SELECT 
+        id, 
+        event, 
+        (dateStamp - 25569) + timeStamp AS utc_datetime, 
+        voyage_From, 
+        lat, 
+        lon 
+    FROM voyages 
+    WHERE imo_num = '9434761' 
+      AND voyage_Id = '6' 
+      AND allocatedVoyageId IS NULL
+)
+SELECT 
+    LEAD(utc_datetime) OVER (ORDER BY utc_datetime) - utc_datetime AS segment_duration,
+    LEAD(lat) OVER (ORDER BY utc_datetime) AS next_lat,
+    LEAD(lon) OVER (ORDER BY utc_datetime) AS next_lon,
+    lat, 
+    lon, 
+    event, 
+    utc_datetime 
+FROM voyage_events 
+WHERE event IN ('SOSP', 'EOSP');
+
+Calculate Cumulative Sailing Time and Port Stay Durations:
+
+Calculate the cumulative sailing time and the time spent at ports for each voyage segment.
+Calculate Distances Between Ports:
+
+Use the Haversine formula to calculate the distance between consecutive ports based on latitude and longitude.
+sql
+
+SELECT 
+    lat, 
+    lon, 
+    next_lat, 
+    next_lon, 
+    (6371 * acos(
+        cos(radians(lat)) * cos(radians(next_lat)) * 
+        cos(radians(next_lon) - radians(lon)) + 
+        sin(radians(lat)) * sin(radians(next_lat))
+    )) AS distance_travelled 
+FROM (
+    SELECT 
+        lat, 
+        lon, 
+        LEAD(lat) OVER (ORDER BY utc_datetime) AS next_lat, 
+        LEAD(lon) OVER (ORDER BY utc_datetime) AS next_lon, 
+        utc_datetime 
+    FROM voyage_events 
+) subquery 
+WHERE next_lat IS NOT NULL;
+
+Python Script Enhancements
+
+Replicate the SQL query logic in Python.
+Implement a function to calculate distances between geographic coordinates.
+Visualize the voyage timeline.
+Steps:
+
+Data Preprocessing:
+
+Load and preprocess the data from a CSV file.
+Convert dateStamp and timeStamp to UTC date-time format.
+
+python script
+
+import pandas as pd
+
+data = pd.read_csv('voyages.csv')
+data['utc_datetime'] = pd.to_datetime(data['dateStamp'] - 25569, unit='D') + pd.to_timedelta(data['timeStamp'], unit='D')
+
+Segment Voyage Stages:
+
+Segment the voyage stages based on 'SOSP' and 'EOSP' events.
+
+python script
+voyage_events = data[data['event'].isin(['SOSP', 'EOSP'])].sort_values('utc_datetime')
+voyage_events['next_utc_datetime'] = voyage_events['utc_datetime'].shift(-1)
+voyage_events['segment_duration'] = voyage_events['next_utc_datetime'] - voyage_events['utc_datetime']
+
+Calculate Cumulative Sailing Time and Port Stay Durations:
+
+Calculate the cumulative sailing time and port stay durations.
+Calculate Distances Between Ports:
+
+Use the Haversine formula to calculate distances between ports.
+python script
+
+from math import radians, sin, cos, sqrt, atan2
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371.0
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return R * c
+
+voyage_events['distance_travelled'] = voyage_events.apply(
+    lambda row: haversine(row['lat'], row['lon'], row['next_lat'], row['next_lon']), axis=1)
+
+Data Visualization:
+
+Visualize the voyage timeline using matplotlib or seaborn.
+python
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(10, 6))
+plt.plot(voyage_events['utc_datetime'], voyage_events['distance_travelled'], marker='o')
+plt.title('Voyage Timeline')
+plt.xlabel('Date-Time')
+plt.ylabel('Distance Travelled (km)')
+plt.show()
